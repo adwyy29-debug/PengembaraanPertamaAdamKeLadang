@@ -22,80 +22,76 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111}
   var status=document.getElementById('status');
   frame.addEventListener('load',function(){
     try{
-      var doc=frame.contentDocument;
-      var win=frame.contentWindow;
-      var img=doc.getElementById('stageImg');
-      var stage=doc.getElementById('stage');
+      var doc=frame.contentDocument, win=frame.contentWindow;
+      var img=doc.getElementById('stageImg'), stage=doc.getElementById('stage');
       var hotspotLayer=doc.getElementById('hotspotLayer');
-      if(!img||!stage||!hotspotLayer) throw new Error('Komponen buku cerita tidak ditemui');
+      if(!img||!stage||!hotspotLayer||!win.goTo||!win.showToast||!win.SCENES) throw new Error('Komponen cerita tidak ditemui');
 
-      // A gentle, quiet two-note "boop" for an incorrect choice.
+      // Soft, low-volume falling two-note tone. Triggered directly by the original wrong-answer logic.
       var audioContext=null;
       function playGentleTryAgain(){
         try{
-          var AudioContext=win.AudioContext||win.webkitAudioContext;
-          if(!AudioContext) return;
-          if(!audioContext) audioContext=new AudioContext();
-          if(audioContext.state==='suspended') audioContext.resume();
-          var now=audioContext.currentTime;
-          var osc=audioContext.createOscillator();
-          var gain=audioContext.createGain();
-          osc.type='sine';
-          osc.frequency.setValueAtTime(440,now);
-          osc.frequency.exponentialRampToValueAtTime(330,now+0.16);
-          gain.gain.setValueAtTime(0.0001,now);
-          gain.gain.exponentialRampToValueAtTime(0.075,now+0.025);
-          gain.gain.exponentialRampToValueAtTime(0.0001,now+0.24);
-          osc.connect(gain);gain.connect(audioContext.destination);
-          osc.start(now);osc.stop(now+0.25);
+          var AC=win.AudioContext||win.webkitAudioContext;
+          if(!AC)return;
+          if(!audioContext)audioContext=new AC();
+          if(audioContext.state==='suspended')audioContext.resume();
+          var t=audioContext.currentTime;
+          [493.88,392].forEach(function(freq,i){
+            var osc=audioContext.createOscillator(), gain=audioContext.createGain();
+            var start=t+i*.105;
+            osc.type='sine';
+            osc.frequency.setValueAtTime(freq,start);
+            gain.gain.setValueAtTime(.0001,start);
+            gain.gain.exponentialRampToValueAtTime(.045,start+.018);
+            gain.gain.exponentialRampToValueAtTime(.0001,start+.19);
+            osc.connect(gain);gain.connect(audioContext.destination);
+            osc.start(start);osc.stop(start+.2);
+          });
         }catch(e){}
       }
 
+      // Hook the actual navigation: wrong-answer choices lead to scenes whose type is "wrong".
+      var originalGoTo=win.goTo;
+      win.goTo=function(id){
+        var destination=win.SCENES[id];
+        if(destination&&destination.type==='wrong')playGentleTryAgain();
+        return originalGoTo.apply(this,arguments);
+      };
+      // Also cover wrong choices that remain on the same scene and show the "Cuba lagi!" toast.
+      var originalToast=win.showToast;
+      win.showToast=function(message){
+        if(String(message).toLowerCase().indexOf('cuba lagi')!==-1)playGentleTryAgain();
+        return originalToast.apply(this,arguments);
+      };
+
       var style=doc.createElement('style');
       style.textContent=
-        '#stageImg{transform-origin:left center;backface-visibility:hidden;transform-style:preserve-3d}'+
-        '.hotspot{position:absolute;overflow:hidden}'+
-        '.hotspot.adam-selected{pointer-events:none!important}'+
-        '.hotspot.adam-selected:after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.58);border:2px solid rgba(255,255,255,.72);border-radius:10px;box-shadow:inset 0 0 12px rgba(255,255,255,.3);animation:adamFadeMark .28s ease-out both}'+
-        '@keyframes adamFadeMark{from{opacity:0}to{opacity:1}}'+
-        '.page-turn-sheet{position:absolute;inset:0;width:100%;height:100%;z-index:100;pointer-events:none;transform-origin:left center;transform-style:preserve-3d;backface-visibility:hidden;overflow:hidden;border-radius:0 2.5% 2.5% 0;clip-path:polygon(0 0,100% 1.5%,98.8% 50%,100% 98.5%,0 100%);box-shadow:inset -16px 0 22px rgba(0,0,0,.2),10px 0 22px rgba(0,0,0,.28);animation:adamPageCurl 820ms cubic-bezier(.48,.04,.28,1) both}'+
-        '.page-turn-sheet img{display:block;width:100%;height:100%;object-fit:contain;background:#000}'+
-        '.page-turn-sheet:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(0,0,0,0) 55%,rgba(0,0,0,.05) 72%,rgba(255,255,255,.25) 88%,rgba(0,0,0,.2) 100%);transform-origin:left center}'+
-        '@keyframes adamPageCurl{0%{transform:perspective(1500px) rotateY(0) rotateX(0) rotateZ(0) scaleX(1);filter:brightness(1)}22%{transform:perspective(1500px) rotateY(-28deg) rotateX(2deg) rotateZ(-.7deg) scaleX(.985);filter:brightness(.96)}48%{transform:perspective(1500px) rotateY(-88deg) rotateX(3deg) rotateZ(-1.2deg) scaleX(.94);filter:brightness(.76)}72%{transform:perspective(1500px) rotateY(-145deg) rotateX(1.5deg) rotateZ(-.5deg) scaleX(.975);filter:brightness(.78)}100%{transform:perspective(1500px) rotateY(-180deg) rotateX(0) rotateZ(0) scaleX(1);filter:brightness(.62)}}'+
-        '@media(prefers-reduced-motion:reduce){.page-turn-sheet{animation-duration:1ms}.hotspot.adam-selected:after{animation-duration:1ms}}';
+        /* Disable the old rigid rotate-out/rotate-back effect. */
+        '#stage.page-turning #stageImg{animation:none!important;transform:none!important;box-shadow:none!important}'+
+        /* Fade the selected hotspot area to visibly mark completed answers. */
+        '.hotspot.adam-selected{pointer-events:none!important;background:rgba(255,255,255,.56)!important;opacity:.68;outline:2px solid rgba(255,255,255,.75);border-radius:9px;box-shadow:inset 0 0 14px rgba(255,255,255,.3)}'+
+        /* A real page overlay with a curved edge, curled corner and moving fold shadow. */
+        '.adam-curl-sheet{position:absolute;inset:0;z-index:15;pointer-events:none;transform-origin:right center;transform-style:preserve-3d;backface-visibility:hidden;overflow:hidden;border-radius:0 3.5% 3.5% 0;clip-path:polygon(0 0,96% 0,98.5% 5%,99.5% 15%,98.3% 28%,97.4% 42%,97.2% 56%,98% 72%,99.2% 87%,98% 96%,96% 100%,0 100%);box-shadow:inset -10px 0 18px rgba(0,0,0,.16),0 8px 26px rgba(0,0,0,.28);animation:adamRealCurl 1050ms cubic-bezier(.42,.02,.25,1) both}'+
+        '.adam-curl-sheet img{display:block;width:100%;height:100%;object-fit:contain;background:#000;backface-visibility:hidden}'+
+        '.adam-curl-sheet:before{content:"";position:absolute;z-index:2;top:-2%;right:-1%;width:25%;height:104%;pointer-events:none;background:linear-gradient(90deg,transparent 0%,rgba(0,0,0,.035) 22%,rgba(255,255,255,.22) 52%,rgba(255,255,255,.48) 69%,rgba(0,0,0,.23) 100%);border-radius:48% 0 0 48%;filter:blur(1px);transform-origin:right center;animation:adamFoldShade 1050ms cubic-bezier(.42,.02,.25,1) both}'+
+        '.adam-curl-sheet:after{content:"";position:absolute;z-index:3;right:0;top:0;width:17%;height:100%;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(255,255,255,.24) 52%,rgba(0,0,0,.16));clip-path:polygon(100% 0,100% 100%,0 96%,32% 78%,14% 58%,18% 40%,0 19%)}'+
+        '@keyframes adamRealCurl{0%{transform:perspective(1800px) rotateY(0deg) rotateZ(0deg) skewY(0deg) scaleX(1);filter:brightness(1)}18%{transform:perspective(1800px) rotateY(-24deg) rotateZ(-1.2deg) skewY(-.7deg) scaleX(.985);filter:brightness(.98)}42%{transform:perspective(1800px) rotateY(-68deg) rotateZ(-2deg) skewY(-1.5deg) scaleX(.91);filter:brightness(.82)}58%{transform:perspective(1800px) rotateY(-112deg) rotateZ(-1.5deg) skewY(-1deg) scaleX(.9);filter:brightness(.72)}82%{transform:perspective(1800px) rotateY(-158deg) rotateZ(-.4deg) skewY(-.2deg) scaleX(.97);filter:brightness(.76)}100%{transform:perspective(1800px) rotateY(-180deg) rotateZ(0) skewY(0) scaleX(1);filter:brightness(.62)}}'+
+        '@keyframes adamFoldShade{0%{opacity:.12;transform:scaleX(.35)}35%{opacity:1;transform:scaleX(1.2)}68%{opacity:.9;transform:scaleX(.9)}100%{opacity:.25;transform:scaleX(.2)}}'+
+        '@media(prefers-reduced-motion:reduce){.adam-curl-sheet,.adam-curl-sheet:before{animation-duration:1ms}}';
       doc.head.appendChild(style);
 
-      // Mark correct selections as faded; incorrect selections get a soft sound.
-      hotspotLayer.addEventListener('click',function(event){
-        var target=event.target;
-        if(!target||!target.classList||!target.classList.contains('hotspot')) return;
-        win.setTimeout(function(){
-          if(target.classList.contains('adam-selected')) return;
-          if(target.isConnected && target.style.pointerEvents==='none'){
-            target.classList.add('adam-selected');
-            return;
-          }
-          // Wrong answers with a destination immediately replace the scene and remove the hotspot.
-          if(!target.isConnected || (target.isConnected && target.style.pointerEvents!=='none')){
-            playGentleTryAgain();
-          }
-        },0);
-      },true);
-
-      // Existing scene code disables correct hotspots; observe that change to fade the chosen picture.
+      // Existing engine disables correct hotspots with pointer-events:none.
       var observer=new win.MutationObserver(function(records){
         records.forEach(function(record){
-          if(record.type==='attributes' && record.attributeName==='style'){
-            var el=record.target;
-            if(el.classList&&el.classList.contains('hotspot')&&el.style.pointerEvents==='none'){
-              el.classList.add('adam-selected');
-            }
+          var el=record.target;
+          if(record.type==='attributes'&&record.attributeName==='style'&&el.classList&&el.classList.contains('hotspot')&&el.style.pointerEvents==='none'){
+            el.classList.add('adam-selected');
           }
         });
       });
       observer.observe(hotspotLayer,{subtree:true,attributes:true,attributeFilter:['style']});
 
-      // Preserve the original scene artwork as a gently curling sheet during each scene change.
+      // Retain the previous scene as a separate sheet while the new scene is revealed beneath it.
       var nativeSrc=Object.getOwnPropertyDescriptor(win.HTMLImageElement.prototype,'src');
       Object.defineProperty(img,'src',{
         configurable:true,enumerable:true,
@@ -103,15 +99,14 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111}
         set:function(value){
           var oldValue=this.getAttribute('src');
           if(oldValue&&oldValue!==value){
-            var sheet=doc.createElement('div');
-            sheet.className='page-turn-sheet';
-            var oldPage=doc.createElement('img');
+            var sheet=doc.createElement('div'),oldPage=doc.createElement('img');
+            sheet.className='adam-curl-sheet';
             oldPage.alt='';
             nativeSrc.set.call(oldPage,oldValue);
             sheet.appendChild(oldPage);
             stage.appendChild(sheet);
             sheet.addEventListener('animationend',function(){if(sheet.parentNode)sheet.parentNode.removeChild(sheet)});
-            win.setTimeout(function(){if(sheet.parentNode)sheet.parentNode.removeChild(sheet)},1000);
+            win.setTimeout(function(){if(sheet.parentNode)sheet.parentNode.removeChild(sheet)},1200);
           }
           nativeSrc.set.call(this,value);
         }
@@ -119,7 +114,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111}
       status.classList.add('hide');
     }catch(err){
       status.textContent='Buku cerita dimuatkan tanpa kesan tambahan.';
-      if(frame.contentWindow) frame.contentWindow.console.warn(err);
+      if(frame.contentWindow)frame.contentWindow.console.warn(err);
     }
   });
 })();
