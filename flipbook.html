@@ -24,7 +24,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111}
     if(!source.includes(oldText))throw new Error('Tidak dapat mencari bahagian: '+label);
     return source.replace(oldText,newText);
   }
-  fetch('index.html',{cache:'no-store'}).then(function(response){
+  fetch('https://raw.githubusercontent.com/adwyy29-debug/PengembaraanPertamaAdamKeLadang/main/index.html',{cache:'no-store'}).then(function(response){
     if(!response.ok)throw new Error('Fail cerita tidak dapat dimuatkan ('+response.status+')');
     return response.text();
   }).then(function(html){
