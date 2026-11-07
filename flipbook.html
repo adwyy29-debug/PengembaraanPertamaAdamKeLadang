@@ -25,6 +25,8 @@
    if(!stage||!img||!layer)throw new Error('Komponen cerita tidak ditemui');
    var css=d.createElement('style');
    css.textContent=
+    '#stage.page-turning #stageImg{animation:none!important;transform:none!important;box-shadow:none!important}'+
+    '#stage.page-turning #hotspotLayer{pointer-events:none}'+
     '.hotspot[style*="pointer-events: none"]{opacity:.48!important;filter:saturate(.65);outline:2px solid rgba(255,255,255,.75);outline-offset:-2px;border-radius:9px;transition:opacity .25s}'+
     '.adam-curl{position:absolute;inset:0;z-index:50;pointer-events:none;transform-origin:left center;transform-style:preserve-3d;backface-visibility:hidden;overflow:hidden;border-radius:0 3% 3% 0;clip-path:polygon(0 0,96% 0,98% 4%,99.5% 15%,98% 30%,97.2% 48%,98% 68%,99.5% 86%,97% 100%,0 100%);box-shadow:inset -14px 0 20px rgba(0,0,0,.22),12px 8px 26px rgba(0,0,0,.35);animation:adamCurl 850ms cubic-bezier(.42,.02,.25,1) both}'+
     '.adam-curl img{width:100%;height:100%;object-fit:contain;display:block}'+
@@ -39,22 +41,32 @@
      [523.25,392].forEach(function(f,i){var o=ctx.createOscillator(),g=ctx.createGain(),at=t+i*.11;o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(.045,at+.025);g.gain.exponentialRampToValueAtTime(.0001,at+.22);o.connect(g);g.connect(ctx.destination);o.start(at);o.stop(at+.23)});
     }catch(e){}
    }
-   // Wrap the story's actual navigation function, not a guessed click event.
+   // Sound for incorrect hotspots that only show the "Cuba lagi!" toast.
+   layer.addEventListener('click',function(ev){
+    var el=ev.target;
+    if(!el||!el.classList||!el.classList.contains('hotspot'))return;
+    var scene=w.SCENES&&w.SCENES[w.currentSceneId];
+    if(!scene||!scene.hotspots)return;
+    var index=Array.prototype.indexOf.call(layer.children,el);
+    var choice=scene.hotspots[index];
+    if(choice&&!choice.correct&&!choice.goto)gentleWrongSound();
+   },true);
+   // Wrap the real navigation function. Snapshot the old illustration BEFORE goTo
+   // changes the scene, because the original engine swaps the image after 350 ms.
    if(typeof w.goTo==='function' && w.SCENES){
     var originalGoTo=w.goTo;
     w.goTo=function(id,isBack){
      var target=w.SCENES[id],oldSrc=img.getAttribute('src');
      if(target&&target.type==='wrong')gentleWrongSound();
-     var result=originalGoTo.apply(this,arguments);
-     var nextSrc=img.getAttribute('src');
-     if(oldSrc&&nextSrc&&oldSrc!==nextSrc){
-      var curl=d.createElement('div');curl.className='adam-curl';
+     var curl=null;
+     if(oldSrc){
+      curl=d.createElement('div');curl.className='adam-curl';
       var oldPage=d.createElement('img');oldPage.src=oldSrc;oldPage.alt='';
       curl.appendChild(oldPage);stage.appendChild(curl);
       curl.addEventListener('animationend',function(){if(curl.parentNode)curl.parentNode.removeChild(curl)});
-      w.setTimeout(function(){if(curl.parentNode)curl.parentNode.removeChild(curl)},1000);
+      w.setTimeout(function(){if(curl&&curl.parentNode)curl.parentNode.removeChild(curl)},1000);
      }
-     return result;
+     return originalGoTo.apply(this,arguments);
     };
    }
    // Correct choices disabled by the original activity engine fade out.
