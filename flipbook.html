@@ -3,78 +3,71 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#111111">
+<meta name="theme-color" content="#111">
 <title>Pengembaraan Pertama Adam ke Ladang</title>
 <style>
-*{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111}
 #story{display:block;width:100%;height:100%;border:0;background:#111}
-#status{position:fixed;z-index:5;left:50%;top:12px;transform:translateX(-50%);padding:7px 13px;border-radius:20px;background:#fff9e9e8;color:#4d3927;font:600 12px system-ui,sans-serif;box-shadow:0 2px 10px #0003;transition:opacity .5s}
+#status{position:fixed;z-index:1000;left:50%;top:12px;transform:translateX(-50%);padding:7px 13px;border-radius:20px;background:#fff9e9e8;color:#4d3927;font:600 12px system-ui,sans-serif;box-shadow:0 2px 10px #0003;transition:opacity .5s}
 #status.hide{opacity:0;pointer-events:none}
 </style>
 </head>
 <body>
 <div id="status">Memuatkan buku cerita Adam…</div>
-<iframe id="story" title="Pengembaraan Pertama Adam ke Ladang"></iframe>
+<iframe id="story" src="index.html" title="Pengembaraan Pertama Adam ke Ladang"></iframe>
 <script>
 (function(){
-  var frame=document.getElementById('story');
-  var status=document.getElementById('status');
-  function replaceOnce(source,oldText,newText,label){
-    if(!source.includes(oldText))throw new Error('Tidak dapat mencari bahagian: '+label);
-    return source.replace(oldText,newText);
-  }
-  fetch('https://raw.githubusercontent.com/adwyy29-debug/PengembaraanPertamaAdamKeLadang/main/index.html',{cache:'no-store'}).then(function(response){
-    if(!response.ok)throw new Error('Fail cerita tidak dapat dimuatkan ('+response.status+')');
-    return response.text();
-  }).then(function(html){
-    // Add a gentle two-note sound inside the original story engine's own click handlers.
-    html=replaceOnce(html,
-      '  function playFlip(){',
-      '  function playGentleTryAgain(){\n'+
-      '    try{\n'+
-      '      var AC=window.AudioContext||window.webkitAudioContext; if(!AC)return;\n'+
-      '      var ctx=playGentleTryAgain.ctx||(playGentleTryAgain.ctx=new AC());\n'+
-      '      if(ctx.state===\'suspended\')ctx.resume();\n'+
-      '      var t=ctx.currentTime;\n'+
-      '      [523.25,392].forEach(function(freq,i){var o=ctx.createOscillator(),g=ctx.createGain(),st=t+i*.11;o.type=\'sine\';o.frequency.setValueAtTime(freq,st);g.gain.setValueAtTime(.0001,st);g.gain.exponentialRampToValueAtTime(.045,st+.02);g.gain.exponentialRampToValueAtTime(.0001,st+.2);o.connect(g);g.connect(ctx.destination);o.start(st);o.stop(st+.21);});\n'+
-      '    }catch(e){}\n'+
-      '  }\n'+
-      '  function playFlip(){','gentle sound helper');
-    html=replaceOnce(html,
-      "          } else if(h.goto){\n            goTo(h.goto);\n          } else {\n            showToast('Cuba lagi!');",
-      "          } else if(h.goto){\n            playGentleTryAgain();\n            goTo(h.goto);\n          } else {\n            playGentleTryAgain();\n            showToast('Cuba lagi!');",
-      'choice wrong-answer branches');
-    html=replaceOnce(html,
-      "          } else {\n            showToast('Cuba lagi!');\n          }\n        });\n      });\n    }\n\n    if(scene.type === 'catch')",
-      "          } else {\n            playGentleTryAgain();\n            showToast('Cuba lagi!');\n          }\n        });\n      });\n    }\n\n    if(scene.type === 'catch')",
-      'multi-select wrong-answer branch');
-
-    // Make already-correctly-selected hotspot areas visibly fade.
-    html=replaceOnce(html,
-      '  .hotspot.debug {',
-      '  .hotspot[style*="pointer-events: none"] { background: rgba(255,255,255,.58) !important; opacity: .72; outline: 2px solid rgba(255,255,255,.78); border-radius: 9px; box-shadow: inset 0 0 12px rgba(255,255,255,.3); }\n  .hotspot.debug {',
-      'selected hotspot styling');
-
-    // Replace the old stiff rotation with a separate, curved sheet that curls over the new scene.
-    html=replaceOnce(html,
-      '  /* A quick 3D page turn between the original illustrated scenes. */\n  #stage.page-turning #hotspotLayer { pointer-events: none; }\n  #stage.page-turning #stageImg {\n    animation: storyPageTurn 700ms cubic-bezier(.55,.08,.35,1) both;\n    box-shadow: 10px 0 24px rgba(0,0,0,.38);\n  }\n  @keyframes storyPageTurn {\n    0%   { transform: perspective(1500px) rotateY(0deg); filter: brightness(1); }\n    46%  { transform: perspective(1500px) rotateY(-88deg); filter: brightness(.72); }\n    54%  { transform: perspective(1500px) rotateY(88deg); filter: brightness(.72); }\n    100% { transform: perspective(1500px) rotateY(0deg); filter: brightness(1); }\n  }\n  @media (prefers-reduced-motion: reduce) {\n    #stage.page-turning #stageImg { animation-duration: 1ms; }\n  }',
-      '  /* Curled paper overlay replaces the old flat rotate-away/rotate-back effect. */\n  #stage.page-turning #hotspotLayer { pointer-events: none; }\n  #stage.page-turning #stageImg { animation: none !important; transform: none !important; box-shadow: none !important; }\n  .adam-curl-sheet { position:absolute; inset:0; width:100%; height:100%; z-index:18; pointer-events:none; transform-origin:left center; transform-style:preserve-3d; backface-visibility:hidden; overflow:hidden; border-radius:0 3% 3% 0; clip-path:polygon(0 0,96% 0,98% 4%,99.5% 15%,98% 30%,97.2% 48%,98% 68%,99.5% 86%,97% 100%,0 100%); box-shadow:inset -13px 0 19px rgba(0,0,0,.18),10px 8px 24px rgba(0,0,0,.3); animation:adamCurledPage 850ms cubic-bezier(.42,.02,.25,1) both; }\n  .adam-curl-image { display:block; width:100%; height:100%; object-fit:contain; background:#000; backface-visibility:hidden; }\n  .adam-curl-sheet:before { content:""; position:absolute; top:-2%; right:0; width:22%; height:104%; border-radius:55% 0 0 55%; background:linear-gradient(90deg,transparent,rgba(0,0,0,.08) 30%,rgba(255,255,255,.36) 68%,rgba(0,0,0,.2)); filter:blur(1px); pointer-events:none; }\n  .adam-curl-sheet:after { content:""; position:absolute; right:0; top:0; width:13%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),rgba(0,0,0,.18)); clip-path:polygon(100% 0,100% 100%,0 96%,35% 78%,12% 57%,22% 39%,0 18%); pointer-events:none; }\n  @keyframes adamCurledPage { 0%{transform:perspective(1700px) rotateY(0) rotateZ(0) skewY(0) scaleX(1);filter:brightness(1)} 20%{transform:perspective(1700px) rotateY(-28deg) rotateZ(-1deg) skewY(-.6deg) scaleX(.98);filter:brightness(.98)} 43%{transform:perspective(1700px) rotateY(-72deg) rotateZ(-2deg) skewY(-1.4deg) scaleX(.91);filter:brightness(.82)} 62%{transform:perspective(1700px) rotateY(-122deg) rotateZ(-1.2deg) skewY(-.8deg) scaleX(.91);filter:brightness(.72)} 84%{transform:perspective(1700px) rotateY(-164deg) rotateZ(-.3deg) skewY(-.2deg) scaleX(.98);filter:brightness(.78)} 100%{transform:perspective(1700px) rotateY(-180deg) rotateZ(0) skewY(0) scaleX(1);filter:brightness(.62)} }\n  @media (prefers-reduced-motion: reduce) { .adam-curl-sheet { animation-duration:1ms; } }',
-      'curved page CSS');
-
-    // Snapshot the old illustration before the original engine swaps in the next scene.
-    html=replaceOnce(html,
-      '    var token = ++pageTurnToken;\n    stage.classList.remove(\'page-turning\');',
-      '    var token = ++pageTurnToken;\n    var curlSheet = document.createElement(\'div\');\n    curlSheet.className = \'adam-curl-sheet\';\n    var curlImage = stageImg.cloneNode(false);\n    curlImage.removeAttribute(\'id\');\n    curlImage.className = \'adam-curl-image\';\n    curlSheet.appendChild(curlImage);\n    stage.appendChild(curlSheet);\n    curlSheet.addEventListener(\'animationend\', function(){ if(curlSheet.parentNode) curlSheet.parentNode.removeChild(curlSheet); });\n    setTimeout(function(){ if(curlSheet.parentNode) curlSheet.parentNode.removeChild(curlSheet); }, 1000);\n    stage.classList.remove(\'page-turning\');',
-      'page snapshot hook');
-
-    var child=frame.contentDocument;
-    child.open();child.write(html);child.close();
-    status.classList.add('hide');
-  }).catch(function(error){
-    status.textContent='Gagal memuatkan buku cerita: '+error.message;
-    console.error(error);
-  });
+ var frame=document.getElementById('story'),status=document.getElementById('status');
+ frame.addEventListener('load',function(){
+  try{
+   var d=frame.contentDocument,w=frame.contentWindow;
+   var stage=d.getElementById('stage'),img=d.getElementById('stageImg'),layer=d.getElementById('hotspotLayer');
+   if(!stage||!img||!layer)throw new Error('Komponen cerita tidak ditemui');
+   var css=d.createElement('style');
+   css.textContent=
+    '.hotspot[style*="pointer-events: none"]{opacity:.48!important;filter:saturate(.65);outline:2px solid rgba(255,255,255,.75);outline-offset:-2px;border-radius:9px;transition:opacity .25s}'+
+    '.adam-curl{position:absolute;inset:0;z-index:50;pointer-events:none;transform-origin:left center;transform-style:preserve-3d;backface-visibility:hidden;overflow:hidden;border-radius:0 3% 3% 0;clip-path:polygon(0 0,96% 0,98% 4%,99.5% 15%,98% 30%,97.2% 48%,98% 68%,99.5% 86%,97% 100%,0 100%);box-shadow:inset -14px 0 20px rgba(0,0,0,.22),12px 8px 26px rgba(0,0,0,.35);animation:adamCurl 850ms cubic-bezier(.42,.02,.25,1) both}'+
+    '.adam-curl img{width:100%;height:100%;object-fit:contain;display:block}'+
+    '.adam-curl:before{content:"";position:absolute;top:-2%;right:0;width:24%;height:104%;border-radius:55% 0 0 55%;background:linear-gradient(90deg,transparent,rgba(0,0,0,.10) 28%,rgba(255,255,255,.42) 68%,rgba(0,0,0,.22));filter:blur(1px)}'+
+    '.adam-curl:after{content:"";position:absolute;right:0;top:0;width:14%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),rgba(0,0,0,.2));clip-path:polygon(100% 0,100% 100%,0 96%,35% 78%,12% 57%,22% 39%,0 18%)}'+
+    '@keyframes adamCurl{0%{transform:perspective(1700px) rotateY(0) rotateZ(0) skewY(0) scaleX(1);filter:brightness(1)}20%{transform:perspective(1700px) rotateY(-28deg) rotateZ(-1deg) skewY(-.6deg) scaleX(.98);filter:brightness(.98)}43%{transform:perspective(1700px) rotateY(-72deg) rotateZ(-2deg) skewY(-1.4deg) scaleX(.91);filter:brightness(.82)}62%{transform:perspective(1700px) rotateY(-122deg) rotateZ(-1.2deg) skewY(-.8deg) scaleX(.91);filter:brightness(.72)}84%{transform:perspective(1700px) rotateY(-164deg) rotateZ(-.3deg) skewY(-.2deg) scaleX(.98);filter:brightness(.78)}100%{transform:perspective(1700px) rotateY(-180deg);filter:brightness(.62)}}'+
+    '@media(prefers-reduced-motion:reduce){.adam-curl{animation-duration:1ms}}';
+   d.head.appendChild(css);
+   // Play a soft, quiet two-note cue specifically when the engine navigates to a "wrong" scene.
+   function gentleWrongSound(){
+    try{var AC=w.AudioContext||w.webkitAudioContext;if(!AC)return;var ctx=gentleWrongSound.ctx||(gentleWrongSound.ctx=new AC());if(ctx.state==='suspended')ctx.resume();var t=ctx.currentTime;
+     [523.25,392].forEach(function(f,i){var o=ctx.createOscillator(),g=ctx.createGain(),at=t+i*.11;o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.0001,at);g.gain.exponentialRampToValueAtTime(.045,at+.025);g.gain.exponentialRampToValueAtTime(.0001,at+.22);o.connect(g);g.connect(ctx.destination);o.start(at);o.stop(at+.23)});
+    }catch(e){}
+   }
+   // Wrap the story's actual navigation function, not a guessed click event.
+   if(typeof w.goTo==='function' && w.SCENES){
+    var originalGoTo=w.goTo;
+    w.goTo=function(id,isBack){
+     var target=w.SCENES[id],oldSrc=img.getAttribute('src');
+     if(target&&target.type==='wrong')gentleWrongSound();
+     var result=originalGoTo.apply(this,arguments);
+     var nextSrc=img.getAttribute('src');
+     if(oldSrc&&nextSrc&&oldSrc!==nextSrc){
+      var curl=d.createElement('div');curl.className='adam-curl';
+      var oldPage=d.createElement('img');oldPage.src=oldSrc;oldPage.alt='';
+      curl.appendChild(oldPage);stage.appendChild(curl);
+      curl.addEventListener('animationend',function(){if(curl.parentNode)curl.parentNode.removeChild(curl)});
+      w.setTimeout(function(){if(curl.parentNode)curl.parentNode.removeChild(curl)},1000);
+     }
+     return result;
+    };
+   }
+   // Correct choices disabled by the original activity engine fade out.
+   var observer=new w.MutationObserver(function(records){
+    records.forEach(function(rec){if(rec.type==='attributes'&&rec.attributeName==='style'){
+     var el=rec.target;if(el.classList&&el.classList.contains('hotspot')&&el.style.pointerEvents==='none')el.classList.add('adam-selected');
+    }});
+   });
+   observer.observe(layer,{subtree:true,attributes:true,attributeFilter:['style']});
+   status.classList.add('hide');
+  }catch(e){status.textContent='Ralat memuatkan kesan tambahan: '+e.message;console.error(e)}
+ });
+ frame.addEventListener('error',function(){status.textContent='Tidak dapat membuka index.html. Semak GitHub Pages.'});
 })();
 </script>
 </body>
