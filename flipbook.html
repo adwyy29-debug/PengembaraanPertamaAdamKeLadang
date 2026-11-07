@@ -15,107 +15,65 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111}
 </head>
 <body>
 <div id="status">Memuatkan buku cerita Adam…</div>
-<iframe id="story" src="index.html" title="Pengembaraan Pertama Adam ke Ladang"></iframe>
+<iframe id="story" title="Pengembaraan Pertama Adam ke Ladang"></iframe>
 <script>
 (function(){
   var frame=document.getElementById('story');
   var status=document.getElementById('status');
-  frame.addEventListener('load',function(){
-    try{
-      var doc=frame.contentDocument, win=frame.contentWindow;
-      var img=doc.getElementById('stageImg'), stage=doc.getElementById('stage');
-      var hotspotLayer=doc.getElementById('hotspotLayer');
-      if(!img||!stage||!hotspotLayer||!win.goTo||!win.showToast||!win.SCENES) throw new Error('Komponen cerita tidak ditemui');
+  function replaceOnce(source,oldText,newText,label){
+    if(!source.includes(oldText))throw new Error('Tidak dapat mencari bahagian: '+label);
+    return source.replace(oldText,newText);
+  }
+  fetch('index.html',{cache:'no-store'}).then(function(response){
+    if(!response.ok)throw new Error('Fail cerita tidak dapat dimuatkan ('+response.status+')');
+    return response.text();
+  }).then(function(html){
+    // Add a gentle two-note sound inside the original story engine's own click handlers.
+    html=replaceOnce(html,
+      '  function playFlip(){',
+      '  function playGentleTryAgain(){\n'+
+      '    try{\n'+
+      '      var AC=window.AudioContext||window.webkitAudioContext; if(!AC)return;\n'+
+      '      var ctx=playGentleTryAgain.ctx||(playGentleTryAgain.ctx=new AC());\n'+
+      '      if(ctx.state===\'suspended\')ctx.resume();\n'+
+      '      var t=ctx.currentTime;\n'+
+      '      [523.25,392].forEach(function(freq,i){var o=ctx.createOscillator(),g=ctx.createGain(),st=t+i*.11;o.type=\'sine\';o.frequency.setValueAtTime(freq,st);g.gain.setValueAtTime(.0001,st);g.gain.exponentialRampToValueAtTime(.045,st+.02);g.gain.exponentialRampToValueAtTime(.0001,st+.2);o.connect(g);g.connect(ctx.destination);o.start(st);o.stop(st+.21);});\n'+
+      '    }catch(e){}\n'+
+      '  }\n'+
+      '  function playFlip(){','gentle sound helper');
+    html=replaceOnce(html,
+      "          } else if(h.goto){\n            goTo(h.goto);\n          } else {\n            showToast('Cuba lagi!');",
+      "          } else if(h.goto){\n            playGentleTryAgain();\n            goTo(h.goto);\n          } else {\n            playGentleTryAgain();\n            showToast('Cuba lagi!');",
+      'choice wrong-answer branches');
+    html=replaceOnce(html,
+      "          } else {\n            showToast('Cuba lagi!');\n          }\n        });\n      });\n    }\n\n    if(scene.type === 'catch')",
+      "          } else {\n            playGentleTryAgain();\n            showToast('Cuba lagi!');\n          }\n        });\n      });\n    }\n\n    if(scene.type === 'catch')",
+      'multi-select wrong-answer branch');
 
-      // Soft, low-volume falling two-note tone. Triggered directly by the original wrong-answer logic.
-      var audioContext=null;
-      function playGentleTryAgain(){
-        try{
-          var AC=win.AudioContext||win.webkitAudioContext;
-          if(!AC)return;
-          if(!audioContext)audioContext=new AC();
-          if(audioContext.state==='suspended')audioContext.resume();
-          var t=audioContext.currentTime;
-          [493.88,392].forEach(function(freq,i){
-            var osc=audioContext.createOscillator(), gain=audioContext.createGain();
-            var start=t+i*.105;
-            osc.type='sine';
-            osc.frequency.setValueAtTime(freq,start);
-            gain.gain.setValueAtTime(.0001,start);
-            gain.gain.exponentialRampToValueAtTime(.045,start+.018);
-            gain.gain.exponentialRampToValueAtTime(.0001,start+.19);
-            osc.connect(gain);gain.connect(audioContext.destination);
-            osc.start(start);osc.stop(start+.2);
-          });
-        }catch(e){}
-      }
+    // Make already-correctly-selected hotspot areas visibly fade.
+    html=replaceOnce(html,
+      '  .hotspot.debug {',
+      '  .hotspot[style*="pointer-events: none"] { background: rgba(255,255,255,.58) !important; opacity: .72; outline: 2px solid rgba(255,255,255,.78); border-radius: 9px; box-shadow: inset 0 0 12px rgba(255,255,255,.3); }\n  .hotspot.debug {',
+      'selected hotspot styling');
 
-      // Hook the actual navigation: wrong-answer choices lead to scenes whose type is "wrong".
-      var originalGoTo=win.goTo;
-      win.goTo=function(id){
-        var destination=win.SCENES[id];
-        if(destination&&destination.type==='wrong')playGentleTryAgain();
-        return originalGoTo.apply(this,arguments);
-      };
-      // Also cover wrong choices that remain on the same scene and show the "Cuba lagi!" toast.
-      var originalToast=win.showToast;
-      win.showToast=function(message){
-        if(String(message).toLowerCase().indexOf('cuba lagi')!==-1)playGentleTryAgain();
-        return originalToast.apply(this,arguments);
-      };
+    // Replace the old stiff rotation with a separate, curved sheet that curls over the new scene.
+    html=replaceOnce(html,
+      '  /* A quick 3D page turn between the original illustrated scenes. */\n  #stage.page-turning #hotspotLayer { pointer-events: none; }\n  #stage.page-turning #stageImg {\n    animation: storyPageTurn 700ms cubic-bezier(.55,.08,.35,1) both;\n    box-shadow: 10px 0 24px rgba(0,0,0,.38);\n  }\n  @keyframes storyPageTurn {\n    0%   { transform: perspective(1500px) rotateY(0deg); filter: brightness(1); }\n    46%  { transform: perspective(1500px) rotateY(-88deg); filter: brightness(.72); }\n    54%  { transform: perspective(1500px) rotateY(88deg); filter: brightness(.72); }\n    100% { transform: perspective(1500px) rotateY(0deg); filter: brightness(1); }\n  }\n  @media (prefers-reduced-motion: reduce) {\n    #stage.page-turning #stageImg { animation-duration: 1ms; }\n  }',
+      '  /* Curled paper overlay replaces the old flat rotate-away/rotate-back effect. */\n  #stage.page-turning #hotspotLayer { pointer-events: none; }\n  #stage.page-turning #stageImg { animation: none !important; transform: none !important; box-shadow: none !important; }\n  .adam-curl-sheet { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; z-index:18; pointer-events:none; transform-origin:left center; transform-style:preserve-3d; backface-visibility:hidden; overflow:hidden; border-radius:0 3% 3% 0; clip-path:polygon(0 0,96% 0,98% 4%,99.5% 15%,98% 30%,97.2% 48%,98% 68%,99.5% 86%,97% 100%,0 100%); box-shadow:inset -13px 0 19px rgba(0,0,0,.18),10px 8px 24px rgba(0,0,0,.3); animation:adamCurledPage 850ms cubic-bezier(.42,.02,.25,1) both; }\n  .adam-curl-sheet:before { content:""; position:absolute; top:-2%; right:0; width:22%; height:104%; border-radius:55% 0 0 55%; background:linear-gradient(90deg,transparent,rgba(0,0,0,.08) 30%,rgba(255,255,255,.36) 68%,rgba(0,0,0,.2)); filter:blur(1px); pointer-events:none; }\n  .adam-curl-sheet:after { content:""; position:absolute; right:0; top:0; width:13%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.25),rgba(0,0,0,.18)); clip-path:polygon(100% 0,100% 100%,0 96%,35% 78%,12% 57%,22% 39%,0 18%); pointer-events:none; }\n  @keyframes adamCurledPage { 0%{transform:perspective(1700px) rotateY(0) rotateZ(0) skewY(0) scaleX(1);filter:brightness(1)} 20%{transform:perspective(1700px) rotateY(-28deg) rotateZ(-1deg) skewY(-.6deg) scaleX(.98);filter:brightness(.98)} 43%{transform:perspective(1700px) rotateY(-72deg) rotateZ(-2deg) skewY(-1.4deg) scaleX(.91);filter:brightness(.82)} 62%{transform:perspective(1700px) rotateY(-122deg) rotateZ(-1.2deg) skewY(-.8deg) scaleX(.91);filter:brightness(.72)} 84%{transform:perspective(1700px) rotateY(-164deg) rotateZ(-.3deg) skewY(-.2deg) scaleX(.98);filter:brightness(.78)} 100%{transform:perspective(1700px) rotateY(-180deg) rotateZ(0) skewY(0) scaleX(1);filter:brightness(.62)} }\n  @media (prefers-reduced-motion: reduce) { .adam-curl-sheet { animation-duration:1ms; } }',
+      'curved page CSS');
 
-      var style=doc.createElement('style');
-      style.textContent=
-        /* Disable the old rigid rotate-out/rotate-back effect. */
-        '#stage.page-turning #stageImg{animation:none!important;transform:none!important;box-shadow:none!important}'+
-        /* Fade the selected hotspot area to visibly mark completed answers. */
-        '.hotspot.adam-selected{pointer-events:none!important;background:rgba(255,255,255,.56)!important;opacity:.68;outline:2px solid rgba(255,255,255,.75);border-radius:9px;box-shadow:inset 0 0 14px rgba(255,255,255,.3)}'+
-        /* A real page overlay with a curved edge, curled corner and moving fold shadow. */
-        '.adam-curl-sheet{position:absolute;inset:0;z-index:15;pointer-events:none;transform-origin:right center;transform-style:preserve-3d;backface-visibility:hidden;overflow:hidden;border-radius:0 3.5% 3.5% 0;clip-path:polygon(0 0,96% 0,98.5% 5%,99.5% 15%,98.3% 28%,97.4% 42%,97.2% 56%,98% 72%,99.2% 87%,98% 96%,96% 100%,0 100%);box-shadow:inset -10px 0 18px rgba(0,0,0,.16),0 8px 26px rgba(0,0,0,.28);animation:adamRealCurl 1050ms cubic-bezier(.42,.02,.25,1) both}'+
-        '.adam-curl-sheet img{display:block;width:100%;height:100%;object-fit:contain;background:#000;backface-visibility:hidden}'+
-        '.adam-curl-sheet:before{content:"";position:absolute;z-index:2;top:-2%;right:-1%;width:25%;height:104%;pointer-events:none;background:linear-gradient(90deg,transparent 0%,rgba(0,0,0,.035) 22%,rgba(255,255,255,.22) 52%,rgba(255,255,255,.48) 69%,rgba(0,0,0,.23) 100%);border-radius:48% 0 0 48%;filter:blur(1px);transform-origin:right center;animation:adamFoldShade 1050ms cubic-bezier(.42,.02,.25,1) both}'+
-        '.adam-curl-sheet:after{content:"";position:absolute;z-index:3;right:0;top:0;width:17%;height:100%;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(255,255,255,.24) 52%,rgba(0,0,0,.16));clip-path:polygon(100% 0,100% 100%,0 96%,32% 78%,14% 58%,18% 40%,0 19%)}'+
-        '@keyframes adamRealCurl{0%{transform:perspective(1800px) rotateY(0deg) rotateZ(0deg) skewY(0deg) scaleX(1);filter:brightness(1)}18%{transform:perspective(1800px) rotateY(-24deg) rotateZ(-1.2deg) skewY(-.7deg) scaleX(.985);filter:brightness(.98)}42%{transform:perspective(1800px) rotateY(-68deg) rotateZ(-2deg) skewY(-1.5deg) scaleX(.91);filter:brightness(.82)}58%{transform:perspective(1800px) rotateY(-112deg) rotateZ(-1.5deg) skewY(-1deg) scaleX(.9);filter:brightness(.72)}82%{transform:perspective(1800px) rotateY(-158deg) rotateZ(-.4deg) skewY(-.2deg) scaleX(.97);filter:brightness(.76)}100%{transform:perspective(1800px) rotateY(-180deg) rotateZ(0) skewY(0) scaleX(1);filter:brightness(.62)}}'+
-        '@keyframes adamFoldShade{0%{opacity:.12;transform:scaleX(.35)}35%{opacity:1;transform:scaleX(1.2)}68%{opacity:.9;transform:scaleX(.9)}100%{opacity:.25;transform:scaleX(.2)}}'+
-        '@media(prefers-reduced-motion:reduce){.adam-curl-sheet,.adam-curl-sheet:before{animation-duration:1ms}}';
-      doc.head.appendChild(style);
+    // Snapshot the old illustration before the original engine swaps in the next scene.
+    html=replaceOnce(html,
+      '    var token = ++pageTurnToken;\n    stage.classList.remove(\'page-turning\');',
+      '    var token = ++pageTurnToken;\n    var curlSheet = stageImg.cloneNode(false);\n    curlSheet.removeAttribute(\'id\');\n    curlSheet.className = \'adam-curl-sheet\';\n    curlSheet.src = stageImg.src;\n    stage.appendChild(curlSheet);\n    curlSheet.addEventListener(\'animationend\', function(){ if(curlSheet.parentNode) curlSheet.parentNode.removeChild(curlSheet); });\n    setTimeout(function(){ if(curlSheet.parentNode) curlSheet.parentNode.removeChild(curlSheet); }, 1000);\n    stage.classList.remove(\'page-turning\');',
+      'page snapshot hook');
 
-      // Existing engine disables correct hotspots with pointer-events:none.
-      var observer=new win.MutationObserver(function(records){
-        records.forEach(function(record){
-          var el=record.target;
-          if(record.type==='attributes'&&record.attributeName==='style'&&el.classList&&el.classList.contains('hotspot')&&el.style.pointerEvents==='none'){
-            el.classList.add('adam-selected');
-          }
-        });
-      });
-      observer.observe(hotspotLayer,{subtree:true,attributes:true,attributeFilter:['style']});
-
-      // Retain the previous scene as a separate sheet while the new scene is revealed beneath it.
-      var nativeSrc=Object.getOwnPropertyDescriptor(win.HTMLImageElement.prototype,'src');
-      Object.defineProperty(img,'src',{
-        configurable:true,enumerable:true,
-        get:function(){return nativeSrc.get.call(this)},
-        set:function(value){
-          var oldValue=this.getAttribute('src');
-          if(oldValue&&oldValue!==value){
-            var sheet=doc.createElement('div'),oldPage=doc.createElement('img');
-            sheet.className='adam-curl-sheet';
-            oldPage.alt='';
-            nativeSrc.set.call(oldPage,oldValue);
-            sheet.appendChild(oldPage);
-            stage.appendChild(sheet);
-            sheet.addEventListener('animationend',function(){if(sheet.parentNode)sheet.parentNode.removeChild(sheet)});
-            win.setTimeout(function(){if(sheet.parentNode)sheet.parentNode.removeChild(sheet)},1200);
-          }
-          nativeSrc.set.call(this,value);
-        }
-      });
-      status.classList.add('hide');
-    }catch(err){
-      status.textContent='Buku cerita dimuatkan tanpa kesan tambahan.';
-      if(frame.contentWindow)frame.contentWindow.console.warn(err);
-    }
+    var child=frame.contentDocument;
+    child.open();child.write(html);child.close();
+    status.classList.add('hide');
+  }).catch(function(error){
+    status.textContent='Gagal memuatkan buku cerita: '+error.message;
+    console.error(error);
   });
 })();
 </script>
