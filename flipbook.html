@@ -23,39 +23,103 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111}
   frame.addEventListener('load',function(){
     try{
       var doc=frame.contentDocument;
+      var win=frame.contentWindow;
       var img=doc.getElementById('stageImg');
       var stage=doc.getElementById('stage');
-      if(!img||!stage) throw new Error('Komponen buku cerita tidak ditemui');
-      var nativeSrc=Object.getOwnPropertyDescriptor(doc.defaultView.HTMLImageElement.prototype,'src');
+      var hotspotLayer=doc.getElementById('hotspotLayer');
+      if(!img||!stage||!hotspotLayer) throw new Error('Komponen buku cerita tidak ditemui');
+
+      // A gentle, quiet two-note "boop" for an incorrect choice.
+      var audioContext=null;
+      function playGentleTryAgain(){
+        try{
+          var AudioContext=win.AudioContext||win.webkitAudioContext;
+          if(!AudioContext) return;
+          if(!audioContext) audioContext=new AudioContext();
+          if(audioContext.state==='suspended') audioContext.resume();
+          var now=audioContext.currentTime;
+          var osc=audioContext.createOscillator();
+          var gain=audioContext.createGain();
+          osc.type='sine';
+          osc.frequency.setValueAtTime(440,now);
+          osc.frequency.exponentialRampToValueAtTime(330,now+0.16);
+          gain.gain.setValueAtTime(0.0001,now);
+          gain.gain.exponentialRampToValueAtTime(0.075,now+0.025);
+          gain.gain.exponentialRampToValueAtTime(0.0001,now+0.24);
+          osc.connect(gain);gain.connect(audioContext.destination);
+          osc.start(now);osc.stop(now+0.25);
+        }catch(e){}
+      }
+
       var style=doc.createElement('style');
       style.textContent=
         '#stageImg{transform-origin:left center;backface-visibility:hidden;transform-style:preserve-3d}'+
-        '.page-turn-sheet{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;z-index:100;pointer-events:none;transform-origin:left center;backface-visibility:hidden;animation:adamPageTurn 720ms cubic-bezier(.55,.08,.35,1) both;box-shadow:12px 0 28px #0008}'+
-        '@keyframes adamPageTurn{0%{transform:perspective(1500px) rotateY(0deg);filter:brightness(1)}45%{transform:perspective(1500px) rotateY(-82deg);filter:brightness(.72)}100%{transform:perspective(1500px) rotateY(-180deg);filter:brightness(.6)}}'+
-        '@media(prefers-reduced-motion:reduce){.page-turn-sheet{animation-duration:1ms}}';
+        '.hotspot{position:absolute;overflow:hidden}'+
+        '.hotspot.adam-selected{pointer-events:none!important}'+
+        '.hotspot.adam-selected:after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.58);border:2px solid rgba(255,255,255,.72);border-radius:10px;box-shadow:inset 0 0 12px rgba(255,255,255,.3);animation:adamFadeMark .28s ease-out both}'+
+        '@keyframes adamFadeMark{from{opacity:0}to{opacity:1}}'+
+        '.page-turn-sheet{position:absolute;inset:0;width:100%;height:100%;z-index:100;pointer-events:none;transform-origin:left center;transform-style:preserve-3d;backface-visibility:hidden;overflow:hidden;border-radius:0 2.5% 2.5% 0;clip-path:polygon(0 0,100% 1.5%,98.8% 50%,100% 98.5%,0 100%);box-shadow:inset -16px 0 22px rgba(0,0,0,.2),10px 0 22px rgba(0,0,0,.28);animation:adamPageCurl 820ms cubic-bezier(.48,.04,.28,1) both}'+
+        '.page-turn-sheet img{display:block;width:100%;height:100%;object-fit:contain;background:#000}'+
+        '.page-turn-sheet:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(0,0,0,0) 55%,rgba(0,0,0,.05) 72%,rgba(255,255,255,.25) 88%,rgba(0,0,0,.2) 100%);transform-origin:left center}'+
+        '@keyframes adamPageCurl{0%{transform:perspective(1500px) rotateY(0) rotateX(0) rotateZ(0) scaleX(1);filter:brightness(1)}22%{transform:perspective(1500px) rotateY(-28deg) rotateX(2deg) rotateZ(-.7deg) scaleX(.985);filter:brightness(.96)}48%{transform:perspective(1500px) rotateY(-88deg) rotateX(3deg) rotateZ(-1.2deg) scaleX(.94);filter:brightness(.76)}72%{transform:perspective(1500px) rotateY(-145deg) rotateX(1.5deg) rotateZ(-.5deg) scaleX(.975);filter:brightness(.78)}100%{transform:perspective(1500px) rotateY(-180deg) rotateX(0) rotateZ(0) scaleX(1);filter:brightness(.62)}}'+
+        '@media(prefers-reduced-motion:reduce){.page-turn-sheet{animation-duration:1ms}.hotspot.adam-selected:after{animation-duration:1ms}}';
       doc.head.appendChild(style);
+
+      // Mark correct selections as faded; incorrect selections get a soft sound.
+      hotspotLayer.addEventListener('click',function(event){
+        var target=event.target;
+        if(!target||!target.classList||!target.classList.contains('hotspot')) return;
+        win.setTimeout(function(){
+          if(target.classList.contains('adam-selected')) return;
+          if(target.isConnected && target.style.pointerEvents==='none'){
+            target.classList.add('adam-selected');
+            return;
+          }
+          // Wrong answers with a destination immediately replace the scene and remove the hotspot.
+          if(!target.isConnected || (target.isConnected && target.style.pointerEvents!=='none')){
+            playGentleTryAgain();
+          }
+        },0);
+      },true);
+
+      // Existing scene code disables correct hotspots; observe that change to fade the chosen picture.
+      var observer=new win.MutationObserver(function(records){
+        records.forEach(function(record){
+          if(record.type==='attributes' && record.attributeName==='style'){
+            var el=record.target;
+            if(el.classList&&el.classList.contains('hotspot')&&el.style.pointerEvents==='none'){
+              el.classList.add('adam-selected');
+            }
+          }
+        });
+      });
+      observer.observe(hotspotLayer,{subtree:true,attributes:true,attributeFilter:['style']});
+
+      // Preserve the original scene artwork as a gently curling sheet during each scene change.
+      var nativeSrc=Object.getOwnPropertyDescriptor(win.HTMLImageElement.prototype,'src');
       Object.defineProperty(img,'src',{
-        configurable:true,
-        enumerable:true,
+        configurable:true,enumerable:true,
         get:function(){return nativeSrc.get.call(this)},
         set:function(value){
           var oldValue=this.getAttribute('src');
-          if(oldValue && oldValue!==value){
-            var sheet=doc.createElement('img');
+          if(oldValue&&oldValue!==value){
+            var sheet=doc.createElement('div');
             sheet.className='page-turn-sheet';
-            sheet.alt='';
-            nativeSrc.set.call(sheet,oldValue);
+            var oldPage=doc.createElement('img');
+            oldPage.alt='';
+            nativeSrc.set.call(oldPage,oldValue);
+            sheet.appendChild(oldPage);
             stage.appendChild(sheet);
             sheet.addEventListener('animationend',function(){if(sheet.parentNode)sheet.parentNode.removeChild(sheet)});
-            doc.defaultView.setTimeout(function(){if(sheet.parentNode)sheet.parentNode.removeChild(sheet)},900);
+            win.setTimeout(function(){if(sheet.parentNode)sheet.parentNode.removeChild(sheet)},1000);
           }
           nativeSrc.set.call(this,value);
         }
       });
       status.classList.add('hide');
     }catch(err){
-      status.textContent='Buku cerita dimuatkan tanpa kesan halaman.';
-      doc && console.warn(err);
+      status.textContent='Buku cerita dimuatkan tanpa kesan tambahan.';
+      if(frame.contentWindow) frame.contentWindow.console.warn(err);
     }
   });
 })();
